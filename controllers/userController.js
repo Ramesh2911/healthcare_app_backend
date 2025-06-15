@@ -54,49 +54,63 @@ export const loginUser = (req, res) => {
     console.log('Login request body:', req.body);
 
     if (!phone || !password) {
-        return res.status(400).json({ message: 'Phone and password are required' });
+        return res.status(400).json({ status: false, message: 'Phone and password are required' });
     }
 
     db.query('SELECT * FROM users WHERE phone = ?', [phone], async (err, results) => {
         if (err) {
             console.error('SQL error:', err);
-            return res.status(500).json({ message: 'Server error' });
+            return res.status(500).json({ status: false, message: 'Server error' });
         }
 
-        console.log('User query result:', results);
-
         if (results.length === 0) {
-            return res.status(401).json({ message: 'Invalid phone or password' });
+            return res.status(401).json({ status: false, message: 'Invalid phone or password' });
         }
 
         const user = results[0];
-        console.log('User password from DB:', user.password);
+        console.log('User found:', user);
 
         try {
             const isMatch = await bcrypt.compare(password, user.password);
             if (!isMatch) {
-                return res.status(401).json({ message: 'Invalid phone or password' });
+                return res.status(401).json({ status: false, message: 'Invalid phone or password' });
             }
 
+            // Generate JWT token
             const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '30d' });
+
+            // Calculate expiration date
+            const tokenExpiredOn = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+            const tokenExpiredOnISO = tokenExpiredOn.toISOString(); // Optional: format as string
 
             db.query('UPDATE users SET token = ? WHERE id = ?', [token, user.id], (updateErr) => {
                 if (updateErr) {
                     console.error('Token update error:', updateErr);
-                    return res.status(500).json({ message: 'Failed to save token' });
+                    return res.status(500).json({ status: false, message: 'Failed to save token' });
                 }
 
-                const { password, ...userWithoutPassword } = user;
-                res.status(200).json({
-                    message: 'Login successful',
-                    token,
-                    user: userWithoutPassword
+                // Return data in required structure
+                return res.status(200).json({
+                    status: true,
+                    message: "Login successfully.",
+                    data: {
+                        id: user.id,
+                        name: user.name,
+                        phone: user.phone,
+                        email: user.email,
+                        token,
+                        token_expired_on: tokenExpiredOnISO,
+                        role: user.role,
+                        referral_code: user.referral_code,
+                        referred_by: user.referred_by,
+                        kyc_verified: user.kyc_verified
+                    }
                 });
             });
 
         } catch (bcryptError) {
             console.error('bcrypt error:', bcryptError);
-            return res.status(500).json({ message: 'Server error' });
+            return res.status(500).json({ status: false, message: 'Server error' });
         }
     });
 };
