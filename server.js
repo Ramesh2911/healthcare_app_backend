@@ -8,7 +8,7 @@ connectDB;
 
 const app = express();
 app.use(cors({
-   origin: 'http://localhost:3000',
+   origin: 'https://innovextechchnologies.co.in',
    credentials: true
 }));
 app.use(cors());
